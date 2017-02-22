@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package tsync;
+
+service Sync {
+    rpc Sync(stream Chunk) returns (Response) {}
+}
+
+message Chunk {
+    bytes data = 1;
+}
+
+message Response {}
