@@ -10,6 +10,7 @@ import logging
 # swift.common.utils import only worked when this was the only way/place
 # swift.common.utils could get imported.  But it's not now, and it's not
 # guaranteed to be anyway, so this is a more robust way to repair it.
+# XXX lp bug #1380815
 logging.threading = threading
 logging.thread = thread
 logging._lock = threading.RLock()
@@ -27,7 +28,6 @@ import grpc
 
 import tsync_pb2 as pb2
 import tsync_pb2_grpc as pb2_grpc
-
 
 
 def join_list(root, item):
@@ -68,8 +68,6 @@ def iter_hashes(device, datadir_path, part, **kwargs):
     for suff in suffs:
         suff_path, hashes = join_list(part_path, suff)
         for hash_ in hashes:
-            if hash_ == 'c4698bb92117b64bff44348c9e93c366':
-                print('wtf!?')
             yield hash_
 
 
@@ -79,6 +77,16 @@ def chunk_iterator(reader):
 
 
 def consume(q):
+    """
+    This guy eats results from TSync server - he would also be the guy to
+    notice pre-emption (a primary sync rejected in-favor of a handoff revert)
+
+    There's no way to get around that he needs to signal back to the mainthread
+    when/if it should stop consuming from the queue.  This is where channels
+    making it super convenient to do do CSP right.  In Python we'd probably use
+    a condition or an event - or just make a queue and put in a "Hey shut
+    things down we've hit too-many/bad errors or like a 420 enhance your calm"
+    """
     batch = []
     while True:
         while len(batch) < 10:
@@ -116,6 +124,8 @@ def sync_parts(args, stub, df_mgr, feeder_q, finished_q):
             )
             with df.open():
                 logging.debug('opened %r', df)
+                # XXX this should be a protobuf message (yes stuffed into the headers)
+                # https://github.com/grpc/grpc-java/blob/v1.1.2/protobuf/src/main/java/io/grpc/protobuf/ProtoUtils.java#L124
                 metadata = {
                     'df_metadata': json.dumps(df.get_metadata()),
                     'policy_index': str(int(part_info['policy'])),
@@ -127,7 +137,9 @@ def sync_parts(args, stub, df_mgr, feeder_q, finished_q):
                 }
                 for node in part_info['sync_to']:
                     metadata['device'] = node['device']
-                    # TODO: pull per-node stub from pool
+                    # TODO: pull per-node stub from pool, reusing tcp
+                    # connections from a pool is brilliant - only connecting to
+                    # one node is cheating
                     logging.info('sending %r' % metadata)
                     f = stub.Sync.future(chunk_iterator(df.reader()),
                                          metadata=metadata.items())

@@ -28,6 +28,7 @@ import logging
 # swift.common.utils import only worked when this was the only way/place
 # swift.common.utils could get imported.  But it's not now, and it's not
 # guaranteed to be anyway, so this is a more robust way to repair it.
+# XXX lp bug #1380815
 logging.threading = threading
 logging.thread = thread
 logging._lock = threading.RLock()
@@ -56,8 +57,11 @@ class SyncServicer(pb2_grpc.SyncServicer):
         logging.debug('ohai!')
         metadata = dict(context.invocation_metadata())
         # TODO: all df params should be protobuf in metadata
+        # https://github.com/grpc/grpc-java/blob/v1.1.2/protobuf/src/main/java/io/grpc/protobuf/ProtoUtils.java#L124
         policy = POLICIES[int(metadata.pop('policy_index'))]
         metadata['policy'] = policy
+        # this whould be a cool place to limit access to our devices - maybe a
+        # token_lease.py:TokenLeaser?
         df_metadata = json.loads(metadata.pop('df_metadata'))
         try:
             df = self.df_router[policy].get_diskfile(**metadata)
