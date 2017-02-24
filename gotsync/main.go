@@ -22,12 +22,12 @@ import (
 var verbose bool
 
 func logInfo(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, args...)
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
 }
 
 func logDebug(format string, args ...interface{}) {
 	if verbose {
-		fmt.Fprintf(os.Stderr, format, args...)
+		fmt.Fprintf(os.Stderr, format+"\n", args...)
 	}
 }
 
@@ -85,6 +85,9 @@ func syncFile(c SyncClient, objFile string, policy int) (err error) {
 		return err
 	}
 	_, err = stream.CloseAndRecv()
+	if err == nil {
+		logDebug("successfully replicated %s", objFile)
+	}
 	return err
 }
 
@@ -98,7 +101,7 @@ func lofWalk(objChan chan string, cancel chan struct{}, path string, left []stri
 					return
 				}
 			} else {
-				lofWalk(objChan, cancel, filepath.Join(path, sub), left[1:])
+				lofWalk(objChan, cancel, sub, left[1:])
 			}
 		}
 	}
@@ -167,17 +170,17 @@ func main() {
 
 	c := NewSyncClient(conn)
 
-	devices, err := filepath.Glob(deviceRoot)
+	devices, err := filepath.Glob(filepath.Join(deviceRoot, "*"))
 	if err != nil {
 		panic("Unable to glob deviceRoot")
 	}
 	wg := sync.WaitGroup{}
 	for _, dev := range devices {
 		wg.Add(1)
-		go func() {
+		go func(dev string) {
 			replicateDevice(c, ring, dev, policyIndex, threadsPerDevice)
 			wg.Done()
-		}()
+		}(dev)
 	}
 	wg.Wait()
 	logInfo("all workers finished")

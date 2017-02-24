@@ -27,3 +27,7 @@ parser.add_argument('--threads-per-dev', default=4, type=int,
 def main():
     args = parser.parse_args()
     return action_map[args.cmd](args)
+
+if __name__ == '__main__':
+    main()
+
