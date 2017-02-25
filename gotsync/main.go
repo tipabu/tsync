@@ -31,7 +31,7 @@ func logDebug(format string, args ...interface{}) {
 	}
 }
 
-func syncFile(c SyncClient, objFile string, policy int) (err error) {
+func syncFile(c SyncClient, node ring.Device, objFile string, policy int) (err error) {
 	lst := strings.Split(objFile, string(os.PathSeparator))
 	pathVals := lst[len(lst)-6:]
 
@@ -130,7 +130,7 @@ func replicateDevice(c SyncClient, ring hummingbird.Ring, devicePath string, pol
 					if node.Device == filepath.Base(devicePath) {
 						continue
 					}
-					if err := syncFile(c, objFile, policy); err != nil {
+					if err := syncFile(c, node, objFile, policy); err != nil {
 						logInfo("error syncing file: %v", err)
 					}
 				}
